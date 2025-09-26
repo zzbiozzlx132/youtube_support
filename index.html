@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trợ Lý Nội Dung YouTube</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Space Grotesk', sans-serif; background-color: #0c1425; color: #e2e8f0; }
+        .mono-font { font-family: 'IBM Plex Mono', monospace; }
+        .card { background-color: #16213a; border: 1px solid #334155; border-radius: 0.75rem; transition: all 0.3s ease; }
+        .card:hover { box-shadow: 0 0 25px rgba(56, 189, 248, 0.1); border-color: #38bdf8; }
+        .input-field, .select-field { background-color: #0f172a; border: 1px solid #475569; color: #e2e8f0; border-radius: 0.375rem; padding: 0.75rem; width: 100%; font-size: 1rem; transition: all 0.2s ease-in-out; }
+        .input-field:focus, .select-field:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4); }
+        .btn-primary { background: linear-gradient(90deg, #38bdf8, #3b82f6); color: #ffffff; font-weight: 700; padding: 1rem 1.5rem; border-radius: 0.5rem; cursor: pointer; transition: all 0.3s; width: 100%; font-size: 1.125rem; border: none; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(56, 189, 248, 0.2); }
+        .btn-primary:disabled { background: #334155; cursor: not-allowed; opacity: 0.6; }
+        .btn-secondary { background-color: #334155; color: #c8d3e3; font-weight: 600; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; }
+        .btn-secondary:hover { background-color: #475569; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; } @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+        .modal-backdrop.active { opacity: 1; visibility: visible; }
+        .modal-content { background-color: #16213a; border: 1px solid #334155; padding: 2rem; border-radius: 1rem; width: 90%; max-width: 600px; transform: scale(0.95); transition: all 0.3s ease; }
+        .modal-backdrop.active .modal-content { transform: scale(1); }
+        #toast-container { position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 100; display: flex; flex-direction: column; gap: 0.5rem; }
+        .toast { display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem; border-radius: 0.5rem; color: white; font-weight: 600; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transform: translateX(100%); opacity: 0; animation: toast-in 0.5s forwards, toast-out 0.5s 4.5s forwards; }
+        .toast-success { background: linear-gradient(90deg, #10b981, #14b8a6); }
+        .toast-error { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .toast-info { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        @keyframes toast-in { to { transform: translateX(0); opacity: 1; } }
+        @keyframes toast-out { to { transform: translateX(100%); opacity: 0; } }
+        .thumbnail-container { position: relative; width: 100%; padding-top: 56.25%; border-radius: 0.5rem; overflow: hidden; background-color: #0f172a; }
+        .thumbnail-container img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-white tracking-tighter">Trợ Lý Nội Dung YouTube</h1>
+            <p class="text-slate-400 mt-2 mono-font">Version 1.4 (Optimization)</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-8">
+                <section class="card p-6 space-y-6">
+                    <div>
+                        <label for="videoUrl" class="font-semibold mb-2 block text-lg">1. Dán URL Video:</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-link absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                            <input type="text" id="videoUrl" class="input-field mono-font pl-10" placeholder="https://www.youtube.com/watch?v=...">
+                        </div>
+                    </div>
+                    
+                    <div id="preAnalysisContainer" class="hidden fade-in pt-6 border-t border-slate-700"></div>
+
+                    <div>
+                        <label for="channelProfileSelect" class="font-semibold mb-2 block text-lg">2. Chọn Profile Kênh:</label>
+                        <select id="channelProfileSelect" class="select-field mono-font">
+                            <option value="">-- Vui lòng chọn profile --</option>
+                        </select>
+                    </div>
+
+                    <div id="descriptionOutputContainer" class="hidden fade-in space-y-2">
+                        <div class="flex justify-between items-center">
+                            <h4 class="font-semibold text-white">3. Mô tả video đã tối ưu:</h4>
+                            <button onclick="copyGenericText(this, 'textarea')" class="btn-secondary text-xs">
+                                <i class="fa-solid fa-copy"></i> Copy Mô Tả
+                            </button>
+                        </div>
+                        <textarea id="descriptionOutput" class="input-field mono-font" rows="10" readonly placeholder="AI sẽ tạo mô tả ở đây..."></textarea>
+                    </div>
+
+                    <div class="pt-6 border-t border-slate-700">
+                        <button id="runBtn" class="btn-primary">
+                            <i class="fa-solid fa-bolt"></i> TẠO NỘI DUNG TỰ ĐỘNG
+                        </button>
+                    </div>
+                </section>
+                
+                <section id="promptDisplaySection" class="hidden fade-in card p-6 space-y-4">
+                    <h3 class="font-bold text-lg text-sky-400">Prompts đã lưu của Profile</h3>
+                    <div id="promptContainer" class="space-y-4"></div>
+                </section>
+            </div>
+
+            <div class="lg:col-span-1 space-y-8">
+                <section class="card p-6 space-y-4">
+                    <h3 class="font-bold text-lg text-sky-400 mb-2 flex items-center gap-2"><i class="fa-solid fa-sliders"></i> Cài Đặt</h3>
+                    <div class="setting-item-col">
+                        <label for="youtube-api-key" class="font-semibold text-sm">YouTube API Key</label>
+                        <input type="password" id="youtube-api-key" class="input-field mono-font" placeholder="API Key của YouTube Data v3">
+                    </div>
+                    <div class="setting-item-col">
+                        <label for="gemini-api-key" class="font-semibold text-sm">Gemini API Key</label>
+                        <input type="password" id="gemini-api-key" class="input-field mono-font" placeholder="API Key của Google AI Studio">
+                    </div>
+                </section>
+
+                <section class="card p-6 space-y-4">
+                     <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-sky-400 flex items-center gap-2"><i class="fa-solid fa-users"></i> Profile Kênh</h3>
+                        <button onclick="openProfileModal()" class="btn-secondary !p-2 h-8 w-8" title="Thêm Profile Kênh mới">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                    <div id="profileList" class="text-slate-400 text-sm space-y-2"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <div id="profileModal" class="modal-backdrop">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h3 id="modalTitle" class="font-bold text-xl text-sky-400 mb-6">Thêm Profile Kênh</h3>
+            <input type="hidden" id="editingProfileId">
+            <div class="space-y-4">
+                <div><label for="profileChannelName" class="font-semibold text-sm mb-1 block">Tên kênh:</label><input type="text" id="profileChannelName" class="input-field mono-font" placeholder="VD: Kiến Thức Thú Vị"></div>
+                <div><label for="profileTemplateDesc" class="font-semibold text-sm mb-1 block">Mô tả mẫu của video:</label><textarea id="profileTemplateDesc" class="input-field mono-font" rows="5" placeholder="Dán cấu trúc mô tả mẫu của bạn ở đây..."></textarea></div>
+                <div><label for="profilePrompt1" class="font-semibold text-sm mb-1 block">Prompt 1:</label><input type="text" id="profilePrompt1" class="input-field mono-font"></div>
+                <div><label for="profilePrompt2" class="font-semibold text-sm mb-1 block">Prompt 2:</label><input type="text" id="profilePrompt2" class="input-field mono-font"></div>
+                <div><label for="profilePrompt3" class="font-semibold text-sm mb-1 block">Prompt 3:</label><input type="text" id="profilePrompt3" class="input-field mono-font"></div>
+            </div>
+            <div class="flex gap-4 mt-8">
+                 <button onclick="closeProfileModal()" class="btn-secondary w-full">Hủy</button>
+                 <button id="saveProfileBtn" class="btn-primary w-full bg-green-600 hover:bg-green-700">Lưu Profile</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast-container"></div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+            loadProfiles();
+            document.getElementById('videoUrl').addEventListener('input', debounce(handleUrlInput, 800));
+            document.getElementById('channelProfileSelect').addEventListener('change', displaySelectedProfilePrompts);
+            document.getElementById('saveProfileBtn').addEventListener('click', saveProfile);
+            document.getElementById('runBtn').addEventListener('click', runMainProcess);
+            document.getElementById('youtube-api-key').addEventListener('input', saveSettings);
+            document.getElementById('gemini-api-key').addEventListener('input', saveSettings);
+            document.getElementById('profileModal').addEventListener('click', closeProfileModal);
+        });
+
+        // --- TOAST & UI HANDLERS ---
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            let iconClass = 'fa-solid fa-circle-info';
+            if (type === 'success') iconClass = 'fa-solid fa-check-circle';
+            if (type === 'error') iconClass = 'fa-solid fa-triangle-exclamation';
+            toast.innerHTML = `<i class="${iconClass}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.remove(); }, 5000);
+        }
+        
+        function setButtonLoading(button, isLoading, loadingText = 'Đang xử lý...') {
+            button.disabled = isLoading;
+            if (isLoading) {
+                if (!button.dataset.originalHtml) button.dataset.originalHtml = button.innerHTML;
+                button.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${loadingText}`;
+            } else {
+                if (button.dataset.originalHtml) button.innerHTML = button.dataset.originalHtml;
+            }
+        }
+
+        // --- MODAL HANDLING ---
+        function openProfileModal(profileId = null) {
+            const modal = document.getElementById('profileModal');
+            const modalTitle = document.getElementById('modalTitle');
+            closeProfileModal();
+            if (profileId) {
+                modalTitle.textContent = 'Chỉnh Sửa Profile Kênh';
+                const profiles = JSON.parse(localStorage.getItem('channelProfiles')) || [];
+                const profileToEdit = profiles.find(p => p.id === profileId);
+                if (profileToEdit) {
+                    document.getElementById('profileChannelName').value = profileToEdit.name;
+                    document.getElementById('profileTemplateDesc').value = profileToEdit.templateDesc;
+                    document.getElementById('profilePrompt1').value = profileToEdit.prompt1;
+                    document.getElementById('profilePrompt2').value = profileToEdit.prompt2;
+                    document.getElementById('profilePrompt3').value = profileToEdit.prompt3;
+                    document.getElementById('editingProfileId').value = profileId;
+                }
+            } else {
+                modalTitle.textContent = 'Thêm Profile Kênh';
+            }
+            modal.classList.add('active');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.remove('active');
+            const fields = ['profileChannelName', 'profileTemplateDesc', 'profilePrompt1', 'profilePrompt2', 'profilePrompt3', 'editingProfileId'];
+            fields.forEach(id => document.getElementById(id).value = '');
+        }
+
+        // --- SETTINGS & PROFILES ---
+        function saveSettings() {
+            localStorage.setItem('youtube-api-key', document.getElementById('youtube-api-key').value);
+            localStorage.setItem('gemini-api-key', document.getElementById('gemini-api-key').value);
+        }
+
+        function loadSettings() {
+            document.getElementById('youtube-api-key').value = localStorage.getItem('youtube-api-key') || '';
+            document.getElementById('gemini-api-key').value = localStorage.getItem('gemini-api-key') || '';
+        }
+        
+        function saveProfile() {
+            const channelName = document.getElementById('profileChannelName').value.trim();
+            if (!channelName) {
+                showToast('Tên kênh không được để trống.', 'error'); return;
+            }
+            const editingId = document.getElementById('editingProfileId').value;
+            let profiles = JSON.parse(localStorage.getItem('channelProfiles')) || [];
+            const profileData = {
+                name: channelName,
+                templateDesc: document.getElementById('profileTemplateDesc').value,
+                prompt1: document.getElementById('profilePrompt1').value,
+                prompt2: document.getElementById('profilePrompt2').value,
+                prompt3: document.getElementById('profilePrompt3').value,
+            };
+            if (editingId) {
+                const profileIndex = profiles.findIndex(p => p.id === editingId);
+                if (profileIndex !== -1) {
+                    profiles[profileIndex] = { ...profiles[profileIndex], ...profileData };
+                    showToast(`Đã cập nhật profile "${channelName}"!`, 'success');
+                }
+            } else {
+                profiles.push({ id: `profile_${Date.now()}`, ...profileData });
+                showToast(`Đã lưu profile "${channelName}"!`, 'success');
+            }
+            localStorage.setItem('channelProfiles', JSON.stringify(profiles));
+            closeProfileModal();
+            loadProfiles();
+        }
+
+        function loadProfiles() {
+            const profiles = JSON.parse(localStorage.getItem('channelProfiles')) || [];
+            const select = document.getElementById('channelProfileSelect');
+            const listDiv = document.getElementById('profileList');
+            select.innerHTML = '<option value="">-- Vui lòng chọn profile --</option>';
+            profiles.forEach(profile => select.appendChild(new Option(profile.name, profile.id)));
+            if (profiles.length === 0) {
+                listDiv.innerHTML = '<span>Chưa có profile nào được lưu.</span>';
+            } else {
+                listDiv.innerHTML = profiles.map(p => 
+                    `<div class="flex items-center justify-between gap-2 bg-slate-800 p-2 rounded-md">
+                        <div class="flex items-center gap-2 overflow-hidden"><i class="fa-solid fa-user-check text-sky-400"></i><span class="font-semibold truncate">${p.name}</span></div>
+                        <button onclick="openProfileModal('${p.id}')" class="btn-secondary !p-2 h-8 w-8 flex-shrink-0" title="Sửa Profile"><i class="fa-solid fa-pencil"></i></button>
+                    </div>`
+                ).join('');
+            }
+        }
+        
+        // --- UTILITIES & CACHING ---
+        // TỐI ƯU: Thêm cơ chế cache
+        const CACHE_DURATION_MS = 3 * 60 * 60 * 1000; // 3 giờ
+        const cache = {
+            get: (key) => {
+                const itemStr = localStorage.getItem(key);
+                if (!itemStr) return null;
+                const item = JSON.parse(itemStr);
+                if (new Date().getTime() > item.expiry) {
+                    localStorage.removeItem(key);
+                    return null;
+                }
+                return item.value;
+            },
+            set: (key, value) => {
+                const item = { value: value, expiry: new Date().getTime() + CACHE_DURATION_MS };
+                localStorage.setItem(key, JSON.stringify(item));
+            }
+        };
+
+        function debounce(func, delay) {
+            let timeout;
+            return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), delay); };
+        }
+
+        function extractVideoID(url) {
+            const patterns = [ /(?:v=|\/)([a-zA-Z0-9_-]{11}).*/, /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/ ];
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match && match[1]) return match[1];
+            }
+            return null;
+        }
+
+        async function imageUrlToBase64(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width; canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const dataURL = canvas.toDataURL('image/jpeg');
+                    resolve(dataURL.split(',')[1]);
+                };
+                img.onerror = (error) => reject(new Error('Không thể tải ảnh thumbnail. Lỗi: ' + error));
+                img.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+            });
+        }
+        
+        function copyGenericText(buttonElement, contentType = 'p') {
+            const textToCopy = (contentType === 'textarea') 
+                ? buttonElement.parentElement.nextElementSibling.value
+                : buttonElement.parentElement.nextElementSibling.innerText;
+            navigator.clipboard.writeText(textToCopy).then(() => showToast(`Đã copy!`, 'success'));
+        }
+
+        function copyPromptText(buttonElement) {
+            const textToCopy = buttonElement.previousElementSibling.innerText;
+            navigator.clipboard.writeText(textToCopy).then(() => showToast('Đã copy prompt!', 'success'));
+        }
+
+        // --- API & WORKFLOW ---
+        async function handleUrlInput() {
+            const url = document.getElementById('videoUrl').value;
+            const container = document.getElementById('preAnalysisContainer');
+            const videoID = extractVideoID(url);
+            if (!videoID) {
+                container.classList.add('hidden'); return;
+            }
+            try {
+                const youtubeApiKey = localStorage.getItem('youtube-api-key');
+                if (!youtubeApiKey) {
+                    showToast('Cần có YouTube API Key để xem trước.', 'info'); return;
+                }
+                const snippet = await fetchYouTubeAPI(videoID);
+                renderPreAnalysis(snippet);
+            } catch (error) {
+                showToast(`Lỗi khi lấy thông tin video: ${error.message}`, 'error');
+                container.classList.add('hidden');
+            }
+        }
+        
+        // TỐI ƯU: renderPreAnalysis thêm nút copy tiêu đề
+        function renderPreAnalysis(snippet, thumbnailText = null) {
+            const container = document.getElementById('preAnalysisContainer');
+            const videoID = extractVideoID(document.getElementById('videoUrl').value);
+            container.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    <div class="thumbnail-container shadow-lg">
+                        <img src="https://i.ytimg.com/vi/${videoID}/maxresdefault.jpg" alt="Thumbnail" onerror="this.src='https://i.ytimg.com/vi/${videoID}/hqdefault.jpg';">
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between items-center">
+                                <h4 class="font-semibold text-white">Tiêu đề video gốc:</h4>
+                                <button onclick="copyGenericText(this)" class="btn-secondary text-xs">
+                                    <i class="fa-solid fa-copy"></i> Copy
+                                </button>
+                            </div>
+                            <p class="mt-1 p-3 bg-slate-900 rounded-lg text-sm font-semibold">${snippet.title}</p>
+                        </div>
+                        <div class="pt-3 border-t border-slate-700">
+                             <h4 class="font-semibold text-sm text-white mb-1">Văn bản trên thumbnail:</h4>
+                             <div id="thumbnailTextOutput_preAnalysis" class="p-3 bg-slate-900 rounded-lg whitespace-pre-wrap mono-font text-xs min-h-[60px]">
+                                ${thumbnailText ? thumbnailText : '<span class="text-slate-400">Chờ chạy để AI phân tích...</span>'}
+                             </div>
+                        </div>
+                    </div>
+                </div>`;
+            container.classList.remove('hidden');
+        }
+
+        function displaySelectedProfilePrompts() {
+            const profileId = document.getElementById('channelProfileSelect').value;
+            const promptSection = document.getElementById('promptDisplaySection');
+            const promptContainer = document.getElementById('promptContainer');
+            promptContainer.innerHTML = ''; 
+            if (!profileId) {
+                promptSection.classList.add('hidden'); return;
+            }
+            const profiles = JSON.parse(localStorage.getItem('channelProfiles')) || [];
+            const selectedProfile = profiles.find(p => p.id === profileId);
+            if (!selectedProfile) return;
+            let hasPrompts = false;
+            for (let i = 1; i <= 3; i++) {
+                const promptKey = `prompt${i}`;
+                if (selectedProfile[promptKey]) {
+                    hasPrompts = true;
+                    promptContainer.insertAdjacentHTML('beforeend', `
+                        <div class="prompt-item">
+                            <label class="font-semibold text-sm text-slate-300 block mb-1">Prompt ${i}:</label>
+                            <div class="flex gap-2 items-center">
+                                <p class="flex-1 p-3 bg-slate-900 rounded-lg text-sm mono-font whitespace-pre-wrap">${selectedProfile[promptKey]}</p>
+                                <button onclick="copyPromptText(this)" class="btn-secondary !p-2.5 h-10 w-10" title="Copy Prompt ${i}"><i class="fa-solid fa-copy"></i></button>
+                            </div>
+                        </div>`);
+                }
+            }
+            promptSection.style.display = hasPrompts ? 'block' : 'none';
+        }
+
+        async function fetchYouTubeAPI(videoId) {
+            const apiKey = localStorage.getItem('youtube-api-key');
+            if (!apiKey) throw new Error('Chưa có YouTube API Key.');
+            const apiUrl = `https://www.googleapis.com/youtube/v3/videos?key=${apiKey}&part=snippet&id=${videoId}`;
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error((await response.json()).error?.message || `Lỗi YouTube API`);
+            }
+            const data = await response.json();
+            if (!data.items?.length) throw new Error('Không tìm thấy video.');
+            return data.items[0].snippet;
+        }
+
+        async function callGeminiAPI(prompt, base64ImageData = null) {
+            const apiKey = localStorage.getItem('gemini-api-key');
+            if (!apiKey) throw new Error('Chưa có Gemini API Key.');
+            const model = 'gemini-2.0-flash';
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            let parts = [{ "text": prompt }];
+            if (base64ImageData) {
+                parts.push({ "inline_data": { "mime_type": "image/jpeg", "data": base64ImageData } });
+            }
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ "contents": [{ "parts": parts }] })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                 throw new Error(data.error?.message || "Gemini API không trả về nội dung.");
+            }
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        async function runMainProcess() {
+            const runBtn = document.getElementById('runBtn');
+            const url = document.getElementById('videoUrl').value;
+            const profileId = document.getElementById('channelProfileSelect').value;
+            const descContainer = document.getElementById('descriptionOutputContainer');
+            const descOutput = document.getElementById('descriptionOutput');
+            
+            if (!localStorage.getItem('youtube-api-key') || !localStorage.getItem('gemini-api-key') || !url || !profileId) {
+                showToast('Vui lòng nhập đủ API, URL và chọn Profile.', 'error'); return;
+            }
+            const videoID = extractVideoID(url);
+            if (!videoID) {
+                showToast('URL video không hợp lệ.', 'error'); return;
+            }
+
+            setButtonLoading(runBtn, true, 'Đang xử lý...');
+            descContainer.classList.remove('hidden');
+            descOutput.value = 'Đang kiểm tra cache...';
+
+            // TỐI ƯU: Kiểm tra cache trước khi chạy
+            const cachedData = cache.get(videoID);
+            if (cachedData) {
+                const tempSnippet = { title: cachedData.originalTitle, channelTitle: 'N/A' };
+                renderPreAnalysis(tempSnippet, cachedData.thumbnailText);
+                descOutput.value = cachedData.newDescription;
+                showToast('Đã tải thành công từ cache!', 'success');
+                setButtonLoading(runBtn, false);
+                return;
+            }
+
+            try {
+                descOutput.value = 'Đang lấy dữ liệu video...';
+                const videoSnippet = await fetchYouTubeAPI(videoID);
+                renderPreAnalysis(videoSnippet);
+                
+                const thumbTextOutput = document.getElementById('thumbnailTextOutput_preAnalysis');
+                if(thumbTextOutput) thumbTextOutput.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI đang đọc text...';
+
+                const profiles = JSON.parse(localStorage.getItem('channelProfiles')) || [];
+                const selectedProfile = profiles.find(p => p.id === profileId);
+                if (!selectedProfile) throw new Error('Không tìm thấy profile.');
+                
+                // TỐI ƯU: Prompt bằng tiếng Anh
+                const descriptionPrompt = `**ROLE:** YouTube SEO Expert & Copywriter.\n**TASK:** Optimize the following video description.\n\n**RULES:**\n1. Retain 90% of the original content and meaning from the "Original Description".\n2. Rewrite the remaining 10% (sentence structure, vocabulary) to make it more engaging and SEO-friendly.\n3. Strictly adhere to the format and structure of the "Template Description".\n4. **MOST IMPORTANT:** The opening MUST be a powerful, curiosity-invoking hook, similar in style to the "Template Description" opening. DO NOT start with a generic greeting. Get straight to the main hook.\n5. Replace the original channel name ("${videoSnippet.channelTitle}") with the new one ("${selectedProfile.name}").\n6. **OUTPUT:** Return only the complete, final description text. Do not add any extra explanations.\n\n---\n**Original Description:**\n${videoSnippet.description}\n---\n**Template Description:**\n${selectedProfile.templateDesc}\n---`;
+                const thumbnailTextPrompt = `Analyze this image and extract all text. Format your output exactly as follows, with each line of text on a new line:\n[line number] - [text content]\n\nExample:\n1 - FIRST LINE OF TEXT\n2 - SECOND LINE`;
+                
+                descOutput.value = 'AI đang viết mô tả...';
+                const thumbnailUrl = videoSnippet.thumbnails.maxresdefault?.url || videoSnippet.thumbnails.high.url;
+                const base64Image = await imageUrlToBase64(thumbnailUrl);
+
+                const [newDescription, thumbnailText] = await Promise.all([
+                    callGeminiAPI(descriptionPrompt),
+                    callGeminiAPI(thumbnailTextPrompt, base64Image)
+                ]);
+
+                descOutput.value = newDescription.trim();
+                if(thumbTextOutput) thumbTextOutput.innerText = thumbnailText.trim();
+                
+                // TỐI ƯU: Lưu kết quả vào cache
+                cache.set(videoID, { newDescription, thumbnailText, originalTitle: videoSnippet.title });
+                showToast('Đã tạo nội dung thành công!', 'success');
+
+            } catch (error) {
+                showToast(`Đã xảy ra lỗi: ${error.message}`, 'error');
+                descOutput.value = `Lỗi: ${error.message}`;
+            } finally {
+                setButtonLoading(runBtn, false);
+            }
+        }
+    </script>
+</body>
+</html>
