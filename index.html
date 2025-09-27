@@ -42,7 +42,7 @@
 
         <header class="text-center mb-8">
             <h1 class="text-4xl sm:text-5xl font-extrabold text-white tracking-tighter">Trợ Lý Nội Dung YouTube</h1>
-            <p class="text-slate-400 mt-2 mono-font">Version 1.4 (Optimization)</p>
+            <p class="text-slate-400 mt-2 mono-font">Version 1.6 (Dynamic Filename)</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -79,6 +79,38 @@
                         <button id="runBtn" class="btn-primary">
                             <i class="fa-solid fa-bolt"></i> TẠO NỘI DUNG TỰ ĐỘNG
                         </button>
+                    </div>
+                </section>
+                
+                <section class="card p-6 space-y-6 fade-in">
+                    <h3 class="font-bold text-lg text-sky-400 flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Công Cụ Lọc Nội Dung
+                    </h3>
+                    
+                    <div>
+                        <label for="rawContentInput" class="font-semibold mb-2 block">1. Dán nội dung gốc vào đây (sẽ tự động lọc):</label>
+                        <textarea id="rawContentInput" class="input-field mono-font" rows="8" placeholder="Dán nội dung cần lọc..."></textarea>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-700">
+                        <button id="cleanBtn" class="btn-primary">
+                            <i class="fa-solid fa-filter"></i> LỌC LẠI THỦ CÔNG
+                        </button>
+                    </div>
+
+                    <div id="cleanedContentContainer" class="hidden fade-in space-y-2">
+                        <div class="flex justify-between items-center">
+                            <h4 class="font-semibold text-white">2. Nội dung đã được làm sạch:</h4>
+                            <div class="flex gap-2">
+                                <button onclick="copyCleanedText()" class="btn-secondary text-xs">
+                                    <i class="fa-solid fa-copy"></i> Copy
+                                </button>
+                                <button onclick="downloadCleanedText()" class="btn-secondary text-xs">
+                                    <i class="fa-solid fa-download"></i> Tải file .txt
+                                </button>
+                            </div>
+                        </div>
+                        <textarea id="cleanedContentOutput" class="input-field mono-font" rows="8" readonly placeholder="Nội dung sạch sẽ hiển thị ở đây..."></textarea>
                     </div>
                 </section>
                 
@@ -135,6 +167,9 @@
     <div id="toast-container"></div>
     
     <script>
+        // Biến toàn cục để lưu tiêu đề video hiện tại
+        let currentVideoTitle = '';
+
         document.addEventListener('DOMContentLoaded', () => {
             loadSettings();
             loadProfiles();
@@ -145,6 +180,12 @@
             document.getElementById('youtube-api-key').addEventListener('input', saveSettings);
             document.getElementById('gemini-api-key').addEventListener('input', saveSettings);
             document.getElementById('profileModal').addEventListener('click', closeProfileModal);
+            
+            // --- CÁC SỰ KIỆN CHO CÔNG CỤ LỌC NỘI DUNG ---
+            document.getElementById('rawContentInput').addEventListener('paste', () => {
+                setTimeout(cleanAndDisplayContent, 0);
+            });
+            document.getElementById('cleanBtn').addEventListener('click', cleanAndDisplayContent);
         });
 
         // --- TOAST & UI HANDLERS ---
@@ -257,9 +298,87 @@
             }
         }
         
+        // --- CÔNG CỤ LỌC NỘI DUNG ---
+        function cleanAndDisplayContent() {
+            const rawContent = document.getElementById('rawContentInput').value;
+            if (!rawContent.trim()) {
+                showToast('Vui lòng dán nội dung cần lọc.', 'info');
+                return;
+            }
+            const regex = /==\s*Bạn đã nói:\s*continue\s*ChatGPT đã nói:\s*Part \d+.*(?:\r\n|\r|\n)?/g;
+            let cleanedContent = rawContent.replace(regex, '\n\n');
+            cleanedContent = cleanedContent.replace(/==\s*$/, '').trim();
+            const outputTextarea = document.getElementById('cleanedContentOutput');
+            const outputContainer = document.getElementById('cleanedContentContainer');
+            outputTextarea.value = cleanedContent;
+            outputContainer.classList.remove('hidden');
+        }
+
+        function copyCleanedText() {
+            const textToCopy = document.getElementById('cleanedContentOutput').value;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showToast('Đã copy nội dung đã lọc!', 'success');
+            }).catch(err => {
+                showToast('Lỗi khi copy: ' + err, 'error');
+            });
+        }
+
+        // HÀM TẢI FILE ĐÃ ĐƯỢC CẬP NHẬT
+        function downloadCleanedText() {
+            const text = document.getElementById('cleanedContentOutput').value;
+            if (!text) {
+                showToast('Không có nội dung để tải.', 'error');
+                return;
+            }
+
+            // 1. Lấy ngày hiện tại và định dạng ddmmyyyy
+            const today = new Date();
+            const dd = String(today.getDate()).padStart(2, '0');
+            const mm = String(today.getMonth() + 1).padStart(2, '0'); // Tháng bắt đầu từ 0
+            const yyyy = today.getFullYear();
+            const dateStr = `${dd}${mm}${yyyy}`;
+            const todayKey = `${yyyy}-${mm}-${dd}`;
+
+            // 2. Lấy và cập nhật bộ đếm từ localStorage
+            let downloadCounter = JSON.parse(localStorage.getItem('downloadCounter')) || {};
+            let countToday = 1;
+            if (downloadCounter.date === todayKey) {
+                countToday = downloadCounter.count + 1;
+            }
+            downloadCounter = { date: todayKey, count: countToday };
+            localStorage.setItem('downloadCounter', JSON.stringify(downloadCounter));
+
+            // 3. Làm sạch tiêu đề video để dùng cho tên file
+            const sanitizedTitle = currentVideoTitle 
+                ? sanitizeFilename(currentVideoTitle) 
+                : 'tieu-de-chua-co';
+
+            // 4. Tạo tên file cuối cùng
+            const filename = `${dateStr} ${countToday} ${sanitizedTitle}.txt`;
+            
+            // 5. Tạo và tải file
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const anchor = document.createElement('a');
+            anchor.download = filename;
+            anchor.href = window.URL.createObjectURL(blob);
+            anchor.style.display = 'none';
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            window.URL.revokeObjectURL(anchor.href);
+            showToast(`Đã tải file: ${filename}`, 'success');
+        }
+
+        function sanitizeFilename(name) {
+            // Xóa ký tự đặc biệt, giữ lại chữ, số, và khoảng trắng
+            const cleaned = name.replace(/[^a-zA-Z0-9\s\u00C0-\u1EF9]/g, '');
+            // Thay thế nhiều khoảng trắng bằng 1 dấu gạch ngang và cắt ngắn
+            return cleaned.replace(/\s+/g, '-').slice(0, 50);
+        }
+
+
         // --- UTILITIES & CACHING ---
-        // TỐI ƯU: Thêm cơ chế cache
-        const CACHE_DURATION_MS = 3 * 60 * 60 * 1000; // 3 giờ
+        const CACHE_DURATION_MS = 3 * 60 * 60 * 1000;
         const cache = {
             get: (key) => {
                 const itemStr = localStorage.getItem(key);
@@ -326,7 +445,9 @@
             const container = document.getElementById('preAnalysisContainer');
             const videoID = extractVideoID(url);
             if (!videoID) {
-                container.classList.add('hidden'); return;
+                currentVideoTitle = ''; // Reset tiêu đề nếu URL không hợp lệ
+                container.classList.add('hidden'); 
+                return;
             }
             try {
                 const youtubeApiKey = localStorage.getItem('youtube-api-key');
@@ -341,8 +462,9 @@
             }
         }
         
-        // TỐI ƯU: renderPreAnalysis thêm nút copy tiêu đề
+        // HÀM NÀY ĐƯỢC CẬP NHẬT ĐỂ LƯU TIÊU ĐỀ VIDEO
         function renderPreAnalysis(snippet, thumbnailText = null) {
+            currentVideoTitle = snippet.title; // Lưu tiêu đề vào biến toàn cục
             const container = document.getElementById('preAnalysisContainer');
             const videoID = extractVideoID(document.getElementById('videoUrl').value);
             container.innerHTML = `
@@ -416,7 +538,7 @@
         async function callGeminiAPI(prompt, base64ImageData = null) {
             const apiKey = localStorage.getItem('gemini-api-key');
             if (!apiKey) throw new Error('Chưa có Gemini API Key.');
-            const model = 'gemini-2.0-flash';
+            const model = 'gemini-1.5-flash';
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
             let parts = [{ "text": prompt }];
             if (base64ImageData) {
@@ -453,7 +575,6 @@
             descContainer.classList.remove('hidden');
             descOutput.value = 'Đang kiểm tra cache...';
 
-            // TỐI ƯU: Kiểm tra cache trước khi chạy
             const cachedData = cache.get(videoID);
             if (cachedData) {
                 const tempSnippet = { title: cachedData.originalTitle, channelTitle: 'N/A' };
@@ -476,7 +597,6 @@
                 const selectedProfile = profiles.find(p => p.id === profileId);
                 if (!selectedProfile) throw new Error('Không tìm thấy profile.');
                 
-                // TỐI ƯU: Prompt bằng tiếng Anh
                 const descriptionPrompt = `**ROLE:** YouTube SEO Expert & Copywriter.\n**TASK:** Optimize the following video description.\n\n**RULES:**\n1. Retain 90% of the original content and meaning from the "Original Description".\n2. Rewrite the remaining 10% (sentence structure, vocabulary) to make it more engaging and SEO-friendly.\n3. Strictly adhere to the format and structure of the "Template Description".\n4. **MOST IMPORTANT:** The opening MUST be a powerful, curiosity-invoking hook, similar in style to the "Template Description" opening. DO NOT start with a generic greeting. Get straight to the main hook.\n5. Replace the original channel name ("${videoSnippet.channelTitle}") with the new one ("${selectedProfile.name}").\n6. **OUTPUT:** Return only the complete, final description text. Do not add any extra explanations.\n\n---\n**Original Description:**\n${videoSnippet.description}\n---\n**Template Description:**\n${selectedProfile.templateDesc}\n---`;
                 const thumbnailTextPrompt = `Analyze this image and extract all text. Format your output exactly as follows, with each line of text on a new line:\n[line number] - [text content]\n\nExample:\n1 - FIRST LINE OF TEXT\n2 - SECOND LINE`;
                 
@@ -492,7 +612,6 @@
                 descOutput.value = newDescription.trim();
                 if(thumbTextOutput) thumbTextOutput.innerText = thumbnailText.trim();
                 
-                // TỐI ƯU: Lưu kết quả vào cache
                 cache.set(videoID, { newDescription, thumbnailText, originalTitle: videoSnippet.title });
                 showToast('Đã tạo nội dung thành công!', 'success');
 
